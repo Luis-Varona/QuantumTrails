@@ -30,9 +30,9 @@ function _possible_shifts(n_states::Int)
     max_shift = div(n_states, 2)
 
     return if isodd(n_states)
-        collect(-max_shift:max_shift)
+        collect((-max_shift):max_shift)
     else
-        vcat(-max_shift:-1, 1:max_shift)
+        vcat((-max_shift):-1, 1:max_shift)
     end
 end
 
