@@ -1,7 +1,8 @@
 using Test
 
 include("../src/Simulation.jl")
-include("../src/Animation.jl")
+# There are bugs precompiling `CairoMakie.jl` on x86 architecture in CI testing
+haskey(ENV, "CI") || include("../src/Animation.jl")
 include("../src/Routes.jl")
 
 @info "Testing `Simulation` module"
