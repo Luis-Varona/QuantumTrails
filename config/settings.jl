@@ -5,16 +5,17 @@ const APP_HOST = "localhost"
 const APP_PORT = 8000
 
 # Simulation defaults
-const DEFAULT_STEPS = 200
-const DEFAULT_STATES = 3
-const DEFAULT_COLLAPSE_RATE = 0.02
+const DEFAULT_STEPS = 25
+const DEFAULT_STATES = 2
+const DEFAULT_COLLAPSE_RATE = 0.2
 
 # Animation defaults
 const SCENE_WIDTH = 1920
 const SCENE_HEIGHT = 1080
-const SCENE_COLOR = :black
-const LINE_RGB = (0.4, 0.6, 1.0)
-const LINE_SCALE = 4
-const DOT_COLOR = :purple
-const DOT_MIN_SIZE = 2
-const DOT_SCALE = 10
+const SCENE_BGCOLOR = :white
+const MKR_COLORMAP = :thermal
+const MKR_COLORRANGE = (0.0, 1.2)
+const MKR_SIZE = 20
+const LINE_ALPHA = 0.5
+const LINE_COLOR = :steelblue
+const LINE_WIDTH = 1.5
