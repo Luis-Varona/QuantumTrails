@@ -2,17 +2,20 @@ module Simulation
 
 using LinearAlgebra
 using Random
+using SparseArrays
 
-export WaveFunction, collapse!, step!, get_probabilities
+export WaveFunctionWrapper, StepData, collapse!, step!, get_step_data
 
-mutable struct WaveFunction
+mutable struct WaveFunctionWrapper
     amps::Vector{ComplexF64}
     buf::Vector{ComplexF64}
+    paths::SparseMatrixCSC{Bool,Int}
     weights::Vector{ComplexF64}
     shifts::Vector{Int}
+    origin::Int
     collapse_rate::Float64
 
-    function WaveFunction(n_steps::Int, n_states::Int, collapse_rate::Float64)
+    function WaveFunctionWrapper(n_steps::Int, n_states::Int, collapse_rate::Float64)
         shifts = _possible_shifts(n_states)
         n_positions = 2n_steps * maximum(shifts) + 1
         origin = div(n_positions + 1, 2)
@@ -20,10 +23,16 @@ mutable struct WaveFunction
         amps = zeros(ComplexF64, n_positions)
         @inbounds amps[origin] = 1.0
         buf = similar(amps)
+        paths = spzeros(Bool, n_positions, n_positions)
         weights = _fourier_weights(n_states)
 
-        return new(amps, buf, weights, shifts, collapse_rate)
+        return new(amps, buf, paths, weights, shifts, origin, collapse_rate)
     end
+end
+
+struct StepData
+    probs::Dict{Int,Float64}
+    paths::Dict{Int,Vector{Int}}
 end
 
 function _possible_shifts(n_states::Int)
@@ -41,43 +50,53 @@ function _fourier_weights(n_states::Int)
     return map(state -> ω^(state - 1) / sqrt(n_states), 1:n_states)
 end
 
-function collapse!(Ψ::WaveFunction)
+function collapse!(Ψ::WaveFunctionWrapper)
     probs = abs2.(Ψ.amps)
-    probs ./= sum(probs)
     fill!(Ψ.amps, 0.0)
+    Ψ.paths.nzval .= false
+    dropzeros!(Ψ.paths)
 
     cdf = cumsum(probs)
     final = searchsortedfirst(cdf, rand())
     @inbounds Ψ.amps[final] = 1.0
+    @inbounds Ψ.paths[findall(!iszero, probs), final] .= true
 
     return Ψ
 end
 
-function step!(Ψ::WaveFunction)
+function step!(Ψ::WaveFunctionWrapper)
     rand() <= Ψ.collapse_rate && return collapse!(Ψ)
 
     fill!(Ψ.buf, 0.0)
+    Ψ.paths.nzval .= false
+    dropzeros!(Ψ.paths)
 
-    for (a, amp) in enumerate(Ψ.amps), (s, shift) in enumerate(Ψ.shifts)
+    for (src, amp) in enumerate(Ψ.amps), (i, shift) in enumerate(Ψ.shifts)
         if amp != 0.0
-            @inbounds weight = Ψ.weights[s]
-            @inbounds Ψ.buf[a + shift] += weight * amp
+            dst = src + shift
+            Ψ.paths[src, dst] = true
+            @inbounds weight = Ψ.weights[i]
+            @inbounds Ψ.buf[dst] += weight * amp
         end
     end
 
+    Ψ.buf[abs2.(Ψ.buf) .< eps(Float64)] .= 0.0
     normalize!(Ψ.buf)
     Ψ.amps, Ψ.buf = Ψ.buf, Ψ.amps
 
     return Ψ
 end
 
-function get_probabilities(Ψ::WaveFunction)
-    probs = abs2.(Ψ.amps)
-    threshold = sqrt(eps(Float64))
-    probs[probs .< threshold] .= 0.0
-    probs ./= sum(probs)
-    origin = div(length(Ψ.amps), 2) + 1
-    return Dict(i - origin => prob for (i, prob) in enumerate(probs) if prob > 0.0)
+function get_step_data(Ψ::WaveFunctionWrapper)
+    centre(k::Int) = k - Ψ.origin
+
+    prob_vec = abs2.(Ψ.amps)
+    probs = Dict(centre(i) => prob for (i, prob) in enumerate(prob_vec) if prob != 0.0)
+
+    dsts_vec = map.(centre, findall.(!iszero, eachrow(Ψ.paths)))
+    paths = Dict(centre(i) => dsts for (i, dsts) in enumerate(dsts_vec) if !isempty(dsts))
+
+    return StepData(probs, paths)
 end
 
 end
